@@ -1,0 +1,10 @@
+# Add inside the existing guihualab.cn site block, before its fallback handler.
+# Read the actual /home/ubuntu/guihualab.Caddyfile first; preserve other handlers.
+handle /taihu {
+    redir /taihu/ 308
+}
+handle_path /taihu/* {
+    root * /var/www/taihu-slow-travel/current
+    header Cache-Control "no-cache"
+    file_server
+}

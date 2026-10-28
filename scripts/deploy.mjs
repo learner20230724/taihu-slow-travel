@@ -1,0 +1,13 @@
+import { cp, mkdir, symlink, rename, stat, readlink } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+const root=fileURLToPath(new URL('../',import.meta.url));
+const target='/var/www/taihu-slow-travel';
+await stat(path.join(root,'dist/index.html'));
+await mkdir(path.join(target,'releases'),{recursive:true});
+const release=path.join(target,'releases',`${new Date().toISOString().replace(/[:.]/g,'-')}-${process.pid}`);
+await cp(path.join(root,'dist'),release,{recursive:true});
+const pending=path.join(target,`.current-${process.pid}`);
+await symlink(release,pending);await rename(pending,path.join(target,'current'));
+console.log(`Published ${await readlink(path.join(target,'current'))}`);
+console.log('https://guihualab.cn/taihu/');
