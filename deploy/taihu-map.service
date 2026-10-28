@@ -1,0 +1,29 @@
+[Unit]
+Description=Taihu map tile cache and road routing
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/apps/taihu-slow-travel
+ExecStart=/usr/local/bin/node /home/ubuntu/apps/taihu-slow-travel/server/map-service.mjs
+Environment=NODE_ENV=production
+Environment=NODE_USE_ENV_PROXY=1
+Environment=HTTPS_PROXY=http://127.0.0.1:7890
+Environment=HTTP_PROXY=http://127.0.0.1:7890
+Environment=NO_PROXY=127.0.0.1,localhost
+Environment=TAIHU_MAP_PORT=4240
+Environment=TAIHU_MAP_CACHE=/var/cache/taihu-map
+CacheDirectory=taihu-map
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/cache/taihu-map
+
+[Install]
+WantedBy=multi-user.target

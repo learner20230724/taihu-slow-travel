@@ -1,58 +1,326 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { Minus, Plus, LocateFixed, MoveUpRight } from 'lucide-react';
-import shoreline from './shoreline.json';
-import { categories, regions, placeById } from './data.js';
+import React, { useEffect, useRef, useState } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import {
+  Minus,
+  Plus,
+  LocateFixed,
+  Maximize2,
+  RefreshCw,
+  ExternalLink,
+} from "lucide-react";
+import { categories } from "./data.js";
 
-const project = ([lng,lat]) => [(lng-119.64)*820,(31.68-lat)*950];
-const lake = shoreline.map(ring => ring.map((p,i) => `${i?'L':'M'}${project(p).map(v=>v.toFixed(1)).join(',')}`).join(' ')+'Z').join(' ');
-const ringCoords = [[120.49,31.31],[120.40,31.40],[120.38,31.48],[120.30,31.55],[120.19,31.58],[120.09,31.55],[120.07,31.48],[120.04,31.41],[119.94,31.36],[119.88,31.27],[119.92,31.16],[119.97,31.06],[120.07,30.98],[120.22,30.96],[120.39,30.99],[120.49,31.05],[120.57,31.16],[120.51,31.22],[120.49,31.31]];
-const ringLine = ringCoords.map((p,i)=>`${i?'L':'M'}${project(p).join(',')}`).join(' ');
-const labels = [
-  {id:'wuxi',p:[120.30,31.60],en:'WUXI'}, {id:'changzhou',p:[119.98,31.57],en:'CHANGZHOU'},
-  {id:'yixing',p:[119.79,31.36],en:'YIXING'}, {id:'changxing',p:[119.84,31.04],en:'CHANGXING'},
-  {id:'huzhou',p:[120.16,30.84],en:'HUZHOU'}, {id:'suzhou',p:[120.65,31.29],en:'SUZHOU'}
+const LAKE_BOUNDS = [
+  [30.88, 119.87],
+  [31.59, 120.64],
 ];
-export default function LakeMap({ places, selected, onSelect, region, onRegion, direction, plan }) {
-  const [zoom,setZoom]=useState(1); const [pan,setPan]=useState([0,0]); const drag=useRef(null); const svg=useRef(null);
-  const small=typeof window!=='undefined'&&window.innerWidth<760;
-  const view=useMemo(()=>{ const w=980/zoom,h=850/zoom;return [490-w/2+pan[0],425-h/2+pan[1],w,h]; },[zoom,pan]);
-  const changeZoom = amount => setZoom(z=>Math.max(1,Math.min(2.8,z+amount)));
-  function down(e){if(e.target.closest('[data-point]') || e.target.closest('[data-city]') || (e.pointerType==='touch'&&zoom===1))return; drag.current={x:e.clientX,y:e.clientY,pan:[...pan],moved:false};}
-  function move(e){if(!drag.current)return; const box=svg.current.getBoundingClientRect();const dx=(e.clientX-drag.current.x)*view[2]/box.width,dy=(e.clientY-drag.current.y)*view[3]/box.height;if(Math.abs(dx)+Math.abs(dy)>5)drag.current.moved=true;setPan([Math.max(-280,Math.min(280,drag.current.pan[0]-dx)),Math.max(-240,Math.min(240,drag.current.pan[1]-dy))]);}
-  const points=[...places].sort((a,b)=>(a.id===selected?2:a.featured?1:0)-(b.id===selected?2:b.featured?1:0));
-  return <div className="map-wrap">
-    <div className="map-heading"><span className="map-heading-dot"/> <span>环湖发现地图</span><span className="map-sublabel">点击圆点，发现下一站</span></div>
-    <div className="map-canvas">
-      <svg ref={svg} className="lake-map" viewBox={view.join(' ')} aria-label="太湖旅行分布示意图，可点击地点圆点" onPointerDown={down} onPointerMove={move} onPointerUp={()=>{drag.current=null;}} onPointerLeave={()=>{drag.current=null;}}>
-        <defs>
-          <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M 80 0 L 0 0 0 80" fill="none" stroke="#bbc7b7" strokeWidth=".6" opacity=".4"/></pattern>
-          <pattern id="water" width="38" height="38" patternUnits="userSpaceOnUse"><path d="M3 19q8-5 16 0t16 0" fill="none" stroke="#85b7b0" strokeWidth=".6" opacity=".32"/></pattern>
-          <linearGradient id="lake-fill" x2=".8" y2="1"><stop stopColor="#c4ded9"/><stop offset="1" stopColor="#dbe9df"/></linearGradient>
-          <filter id="land-shadow"><feDropShadow dx="0" dy="3" stdDeviation="5" floodColor="#6d8d74" floodOpacity=".12"/></filter>
-        </defs>
-        <rect x="-500" y="-500" width="2000" height="1900" fill="#eef0e5"/><rect x="-500" y="-500" width="2000" height="1900" fill="url(#grid)"/>
-        <g fill="none" stroke="#c7d3bc" strokeWidth="1" opacity=".55"><path d="M5 110Q150 30 290 120T380 390T200 600T20 700"/><path d="M-20 140Q160 80 250 155T320 390T180 570T-20 650"/><path d="M5 170Q140 110 220 180T280 390T140 540T-20 610"/><path d="M15 200Q130 140 190 210T240 390T100 510T-20 570"/><path d="M720 110Q950 90 940 350T1000 620"/><path d="M750 140Q920 130 910 350T980 660"/></g>
-        <path d={lake} fill="url(#lake-fill)" stroke="#9abbab" strokeWidth="1.5" filter="url(#land-shadow)"/>
-        <path d={lake} fill="url(#water)"/>
-        <path d="M534 507 Q552 467 591 489 Q621 489 631 515 Q648 525 635 552 Q651 572 617 585 Q586 604 559 583 Q529 568 534 542 Q517 528 534 507Z" fill="#dbe3cf" stroke="#b5c6a9"/>
-        <path d="M550 527Q584 499 617 528M548 544Q588 516 628 544M561 563Q592 540 623 560" fill="none" stroke="#bfcdb3" strokeWidth="1"/>
-        <text x="581" y="551" textAnchor="middle" fill="#6d826a" fontSize="16">西山岛</text>
-        <g transform="translate(462 358)" fill="#6a9791" textAnchor="middle"><text fontSize="57" letterSpacing="19" fontFamily="serif">太湖</text><text y="34" fontSize="14" letterSpacing="6">LAKE TAIHU</text><path d="M-22 60q11-9 22 0t22 0" fill="none" stroke="#8ab3a8" strokeWidth="2"/></g>
-        <path d={ringLine} fill="none" stroke="#b4bfa3" strokeWidth="3" strokeDasharray="6 8" strokeLinecap="round"/>
-        <g transform="translate(338 214) rotate(-18)"><rect x="-6" y="-25" width="112" height="31" rx="15" fill="#f9faf3" opacity=".9"/><text x="50" y="-5" fontSize="15" fill="#6f8265" textAnchor="middle">{direction==='ccw'?'↶ 逆时针':'↷ 顺时针'}</text></g>
-        {labels.map(label=>{const [x,y]=project(label.p);const r=regions.find(r=>r.id===label.id);return <g key={label.id} data-city="true" role="button" tabIndex="0" aria-label={`筛选${r.name}`} onClick={()=>onRegion(region===r.id?'all':r.id)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onRegion(r.id);}}} className="city-label"><rect x={x-57} y={y-30} width="114" height="62" rx="15" fill={region===r.id?'#fff':'transparent'}/><text x={x} y={y-3} textAnchor="middle" fontSize={small?36:25} fontWeight="600" fill={region===r.id?'#235c4b':'#536456'}>{r.name}</text><text x={x} y={y+20} textAnchor="middle" fontSize={small?14:11} letterSpacing="2" fill="#7c8978">{label.en}</text></g>})}
-        {points.map(p=>{const [x,y]=project(p.coords);const active=selected===p.id;const inPlan=plan.indexOf(p.id);const color=categories.find(c=>c.id===p.category)?.color;return <g key={p.id} data-point={p.id} className={`map-point ${active?'active':''}`} tabIndex="0" role="button" aria-label={`在地图上查看${p.name}`} onClick={()=>onSelect(p.id)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onSelect(p.id);}}}>
-          <title>{p.name} · {p.city}</title><circle cx={x} cy={y} r="22" fill="transparent"/>
-          {active&&<circle cx={x} cy={y} r="23" fill={color} opacity=".15"/>}
-          <circle cx={x} cy={y} r={active?12:inPlan>=0?10:p.featured?7:5} fill={inPlan>=0?'#235c4b':color} stroke="#fffef8" strokeWidth={active?4:2}/>
-          {inPlan>=0&&<text x={x} y={y+4} fill="white" textAnchor="middle" fontSize="11" fontWeight="600">{inPlan+1}</text>}
-          {(active || !small&&['mingzhu','xiangshan','yigao','moon','mingyue'].includes(p.id)&&region==='all')&&<g pointerEvents="none"><rect x={x+16} y={y-(small?23:15)} width={Math.min(p.name.length*(small?26:14)+20,small?360:210)} height={small?46:30} rx="9" fill="#fffffa" stroke={active?'#a1b7a3':'#e0e3d7'}/><text x={x+26} y={y+(small?8:5)} fontSize={small?26:14} fontWeight={active?600:400} fill="#40574a">{p.name}</text></g>}
-        </g>})}
-      </svg>
-      <div className="map-compass"><span>N</span><MoveUpRight size={20} strokeWidth={1.3}/></div>
-      <div className="map-scale"><span/><small>10 km 左右 · 分布示意</small></div>
-      <div className="map-controls"><button aria-label="放大地图" onClick={()=>changeZoom(.35)} disabled={zoom>=2.8}><Plus size={18}/></button><button aria-label="缩小地图" onClick={()=>changeZoom(-.35)} disabled={zoom<=1}><Minus size={18}/></button><button aria-label="复位地图" onClick={()=>{setZoom(1);setPan([0,0]);}}><LocateFixed size={18}/></button></div>
+const MAX_BOUNDS = [
+  [30.55, 119.35],
+  [31.95, 121],
+];
+
+export default function LakeMap({
+  places,
+  selected,
+  onSelect,
+  onOpen,
+  region,
+  plan,
+  roadRoute = null,
+  focusToken = 0,
+}) {
+  const container = useRef(null),
+    mapRef = useRef(null),
+    tilesRef = useRef(null),
+    markerGroup = useRef(null),
+    routeLayer = useRef(null);
+  const selectRef = useRef(onSelect),
+    openRef = useRef(onOpen),
+    initial = useRef(true);
+  const [status, setStatus] = useState("loading");
+  const verified = places.filter(
+    (p) => Array.isArray(p.coords) && p.coordinateSource,
+  );
+  const roads = places.filter((p) => p.roadGeometry);
+  selectRef.current = onSelect;
+  openRef.current = onOpen;
+
+  useEffect(() => {
+    const map = L.map(container.current, {
+      minZoom: 8,
+      maxZoom: 18,
+      zoomControl: false,
+      zoomSnap: 0.25,
+      zoomDelta: 0.5,
+      scrollWheelZoom: false,
+      maxBounds: MAX_BOUNDS,
+      maxBoundsViscosity: 0.8,
+      attributionControl: true,
+    });
+    mapRef.current = map;
+    map.attributionControl.setPrefix(false);
+    map.fitBounds(LAKE_BOUNDS, { padding: [18, 18], animate: false });
+    const tiles = L.tileLayer("/api/taihu/tiles/{z}/{x}/{y}.png", {
+      minZoom: 8,
+      maxZoom: 18,
+      bounds: MAX_BOUNDS,
+      noWrap: true,
+      keepBuffer: 0,
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    tilesRef.current = tiles;
+    let successes = 0,
+      failures = 0;
+    tiles.on("loading", () => {
+      successes = 0;
+      failures = 0;
+      setStatus("loading");
+    });
+    tiles.on("tileload", () => {
+      successes++;
+      if (!failures) setStatus("ready");
+    });
+    tiles.on("tileerror", () => {
+      failures++;
+      setStatus("error");
+    });
+    tiles.on("load", () =>
+      setStatus(!failures && successes ? "ready" : "error"),
+    );
+    markerGroup.current = L.layerGroup().addTo(map);
+    L.control
+      .scale({ imperial: false, maxWidth: 100, position: "bottomleft" })
+      .addTo(map);
+    const resize = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+    resize.observe(container.current);
+    map.on("focus", () => map.scrollWheelZoom.enable());
+    map.on("blur", () => map.scrollWheelZoom.disable());
+    const timeout = setTimeout(() => {
+      if (!successes) setStatus("error");
+    }, 22000);
+    return () => {
+      clearTimeout(timeout);
+      resize.disconnect();
+      map.remove();
+      mapRef.current = null;
+      initial.current = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const group = markerGroup.current;
+    if (!mapRef.current || !group) return;
+    group.clearLayers();
+    for (const road of roads) {
+      const layer = L.geoJSON(road.roadGeometry, {
+        style: {
+          color: road.id === selected ? "#346c44" : "#96b38a",
+          weight: road.id === selected ? 7 : 4,
+          opacity: 0.9,
+        },
+      });
+      layer.on("click", () => {
+        selectRef.current(road.id);
+        if (window.matchMedia("(max-width: 767px)").matches)
+          openRef.current?.(road.id);
+      });
+      const name = document.createElement("span");
+      name.textContent = road.name;
+      layer.bindTooltip(name, { sticky: true, className: "real-map-label" });
+      layer.addTo(group);
+    }
+    for (const p of verified) {
+      const color =
+        categories.find((c) => c.id === p.category)?.color || "#285b48";
+      const index = plan.indexOf(p.id),
+        active = p.id === selected;
+      const button = document.createElement("button");
+      button.className = `real-map-pin ${active ? "active" : ""} ${index >= 0 ? "in-plan" : ""}`;
+      button.style.setProperty("--pin-color", color);
+      button.setAttribute("aria-label", `在地图上查看${p.name}`);
+      button.setAttribute("data-point", p.id);
+      button.setAttribute("aria-pressed", String(active));
+      button.dataset.lng = String(p.coords[0]);
+      button.dataset.lat = String(p.coords[1]);
+      const dot = document.createElement("span");
+      dot.textContent = index >= 0 ? String(index + 1) : "";
+      button.append(dot);
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectRef.current(p.id);
+        if (window.matchMedia("(max-width: 767px)").matches)
+          openRef.current?.(p.id);
+      });
+      const marker = L.marker([p.coords[1], p.coords[0]], {
+        icon: L.divIcon({
+          html: button,
+          className: "real-map-marker",
+          iconSize: [38, 38],
+          iconAnchor: [19, 19],
+        }),
+        keyboard: false,
+        zIndexOffset: active ? 2000 : index >= 0 ? 1000 : 0,
+      });
+      const label = document.createElement("span");
+      label.textContent = p.name;
+      marker.bindTooltip(label, {
+        permanent: active,
+        direction: "top",
+        offset: [0, -11],
+        className: "real-map-label",
+      });
+      marker.addTo(group);
+    }
+  }, [places, selected, plan]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (region === "all")
+      map.fitBounds(LAKE_BOUNDS, { padding: [18, 18], animate: false });
+    else if (verified.length)
+      map.fitBounds(
+        L.latLngBounds(verified.map((p) => [p.coords[1], p.coords[0]])),
+        { padding: [45, 45], maxZoom: 12, animate: false },
+      );
+  }, [region]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (initial.current) {
+      initial.current = false;
+      if (!focusToken) return;
+    }
+    const p = places.find((p) => p.id === selected && p.coords);
+    if (p && focusToken)
+      map.setView([p.coords[1], p.coords[0]], Math.max(map.getZoom(), 14), {
+        animate: false,
+      });
+    const road = places.find((p) => p.id === selected && p.roadGeometry);
+    if (road && focusToken)
+      map.fitBounds(L.geoJSON(road.roadGeometry).getBounds(), {
+        padding: [35, 35],
+        maxZoom: 14,
+        animate: false,
+      });
+  }, [focusToken]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (routeLayer.current) {
+      map.removeLayer(routeLayer.current);
+      routeLayer.current = null;
+    }
+    if (roadRoute?.geometry) {
+      const layer = L.geoJSON(roadRoute.geometry, {
+        style: { color: "#1d6b54", weight: 5, opacity: 0.85, lineCap: "round" },
+      }).addTo(map);
+      routeLayer.current = layer;
+      map.fitBounds(layer.getBounds(), { padding: [40, 40], animate: false });
+    }
+  }, [roadRoute]);
+
+  const retry = () => {
+    setStatus("loading");
+    tilesRef.current?.redraw();
+  };
+  return (
+    <div className="map-wrap real-map-wrap">
+      <div className="map-heading">
+        <span className="map-heading-dot" />
+        <strong>太湖道路地图</strong>
+        <span className="map-sublabel">放大查看岛屿、道路和地点</span>
+      </div>
+      <div className="map-canvas real-map-canvas">
+        <div
+          ref={container}
+          className="real-lake-map"
+          aria-label="OpenStreetMap 太湖真实地图"
+        />
+        <div className={`map-network ${status}`} role="status">
+          {status === "loading"
+            ? "正在加载地图"
+            : status === "error"
+              ? "底图加载遇到问题"
+              : "OpenStreetMap 地图"}
+          {status === "error" && (
+            <button onClick={retry}>
+              <RefreshCw size={12} />
+              重试
+            </button>
+          )}
+        </div>
+        {status === "error" && (
+          <div className="map-load-help">
+            <p>底图暂未完整加载，地点清单仍可使用。</p>
+            <a
+              href="https://www.openstreetmap.org/#map=10/31.235/120.150"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              打开原地图
+              <ExternalLink size={12} />
+            </a>
+          </div>
+        )}
+        <div className="map-controls">
+          <button
+            aria-label="放大地图"
+            onClick={() => mapRef.current?.zoomIn()}
+          >
+            <Plus size={18} />
+          </button>
+          <button
+            aria-label="缩小地图"
+            onClick={() => mapRef.current?.zoomOut()}
+          >
+            <Minus size={18} />
+          </button>
+          <button
+            aria-label="复位地图"
+            onClick={() =>
+              mapRef.current?.fitBounds(LAKE_BOUNDS, {
+                padding: [18, 18],
+                animate: false,
+              })
+            }
+          >
+            <LocateFixed size={18} />
+          </button>
+          <button
+            aria-label="全屏地图"
+            onClick={() => {
+              if (document.fullscreenElement) document.exitFullscreen();
+              else container.current.parentElement.requestFullscreen?.();
+            }}
+          >
+            <Maximize2 size={17} />
+          </button>
+        </div>
+      </div>
+      <div className="map-footer">
+        <span>
+          <i />
+          已核实{verified.length}个定位
+          {roads.length ? `、${roads.length}段道路` : ""}
+        </span>
+        {places.length > verified.length + roads.length && (
+          <span className="unlocated-count">
+            另{places.length - verified.length - roads.length}个待核实，未落点
+          </span>
+        )}
+        <small>
+          {roadRoute
+            ? "深色实线为道路计算结果，非实时路况"
+            : "打开地点可核对定位来源"}
+        </small>
+      </div>
     </div>
-    <div className="map-footer"><span><i/> 湖岸风景</span><span><i className="orange"/> 美食歇脚</span><small>位置与环线为示意，出行请打开地点导航</small></div>
-  </div>;
+  );
 }

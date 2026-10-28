@@ -1,12 +1,50 @@
-import researched from './researched-places.json' with { type: 'json' };
-import { corePlaces } from './catalog.js';
-export { regions, categories, seasons, checkedAt, foodNotes, routeTemplates } from './catalog.js';
-const extra = [
-  { id: 'linwu', name: '林屋洞', region: 'suzhou', category: 'nature', coords: [120.310,31.125], ring: 86.5, duration: [60,90], cost: [40,70], tags: ['洞穴','山野','支线'], seasons: ['spring','summer','autumn','winter'], tagline: '看过湖面，再去看山的里面', summary: '西山岛上的洞穴景观，为岛屿旅行增加一种不同于古村和湖岸的体验。适合与岛上一处古村择要组合。', tip: '洞内路面、开放和票务以现场安排为准。环湖大圈之外，进入西山岛需另留交通时间。', nav: '苏州西山林屋洞', branch: true, source: { title: '苏州文旅 · 西山景区', url: 'https://visitsz.wglj.suzhou.com.cn/scenic-spot-detail.aspx?id=43' } },
-  { id: 'ceramics', name: '中国宜兴陶瓷博物馆', region: 'yixing', category: 'culture', coords: [119.841,31.267], ring: 42, duration: [75,120], cost: [null,null], tags: ['雨天可选','陶瓷','需要预约核对'], seasons: ['spring','summer','autumn','winter'], tagline: '一把紫砂壶，连起一座陶都', summary: '从古陶、青瓷到紫砂与当代陶艺，适合用一次室内参观认识宜兴。可与蜀山古南街组成半日人文支线。', tip: '丁蜀镇丁山北路150号。官网设预约入口；闭馆日、收费及展厅安排以当日公告为准。', nav: '中国宜兴陶瓷博物馆', branch: true, source: { title: '宜兴陶瓷博物馆官网', url: 'https://www.yxtcbwg.com/' }, phone: '0510-87180688', featured: true },
-  { id: 'shigong', name: '石公山', region: 'suzhou', category: 'nature', coords: [120.295,31.063], ring: 85, duration: [60,100], cost: [40,70], tags: ['湖山','登高','支线'], seasons: ['spring','autumn','winter'], tagline: '山不高，湖却很开阔', summary: '西山南端的临湖山景，适合短登高与看湖组合。与明月湾古村相配，一天留在西山就很充实。', tip: '需要过太湖大桥进岛，进岛与返程交通另计。票种和开放看景区当日安排。', nav: '苏州西山石公山', branch: true, source: { title: '苏州文旅 · 西山景区', url: 'https://visitsz.wglj.suzhou.com.cn/scenic-spot-detail.aspx?id=43' } },
-  { id: 'qiyuan', name: '启园 · 席家花园', region: 'suzhou', category: 'culture', coords: [120.415,31.093], ring: 82, duration: [60,90], cost: [40,80], tags: ['园林','湖岸','支线'], seasons: ['spring','summer','autumn'], tagline: '在东山，换一座临湖园林', summary: '东山的湖畔园林选择，可把园林漫步与古村、茶果体验组合。适合不追求走满整圈的东山专程日。', tip: '导航启园停车场。与陆巷、杨湾组合时挑两个重点，避免古建景点连续赶场。', nav: '苏州东山启园', branch: true, source: { title: '东山镇政务服务网 · 名胜古迹', url: 'https://wzdsz.jszwfw.gov.cn/index.html' } },
-  { id: 'yangwan', name: '杨湾古村', region: 'suzhou', category: 'village', coords: [120.393,31.065], ring: 84, duration: [45,90], cost: [0,50], costLabel: '村落散步与收费古建分别确认', tags: ['古村','茶果','支线'], seasons: ['spring','summer','autumn'], tagline: '走进依山临湖的日常', summary: '东山后山的传统村落，老巷、民居与茶果田园相邻。适合与陆巷择一慢逛，再留一点湖边时间。', tip: '古村街区与内部古建不等同于统一开放景区，入口、收费和参观规则以现场为准。', nav: '苏州东山杨湾古村', branch: true, source: { title: '苏州市政府 · 杨湾村', url: 'https://www.suzhou.gov.cn/mlxcjs/cjdx/202201/f7d91ee973b94cf79586a8adf00fef9d.shtml' } }
-];
-export const places = [...corePlaces, ...researched, ...extra].map(p => ({ ...p, city: ({suzhou:'苏州',wuxi:'无锡',changzhou:'常州',yixing:'宜兴',changxing:'长兴',huzhou:'湖州'})[p.region] }));
-export const placeById = Object.fromEntries(places.map(p => [p.id, p]));
+import suzhou from "./content/suzhou.json" with { type: "json" };
+import northwest from "./content/northwest.json" with { type: "json" };
+import south from "./content/south.json" with { type: "json" };
+import roadFeatures from "./content/roads.json" with { type: "json" };
+import { getVerifiedPosition } from "./geo.js";
+export {
+  regions,
+  categories,
+  seasons,
+  checkedAt,
+  foodNotes,
+  routeTemplates,
+} from "./catalog.js";
+
+const cities = {
+  suzhou: "苏州",
+  wuxi: "无锡",
+  changzhou: "常州",
+  yixing: "宜兴",
+  changxing: "长兴",
+  huzhou: "湖州",
+};
+export const places = [...suzhou, ...northwest, ...south].map((p) => {
+  const features = roadFeatures.features.filter(
+    (f) => f.properties.placeId === p.id,
+  );
+  const roadGeometry = features.length
+    ? { type: "FeatureCollection", features }
+    : null;
+  return {
+    duration: [45, 90],
+    cost: [null, null],
+    tags: [],
+    seasons: ["spring", "summer", "autumn", "winter"],
+    ...p,
+    city: cities[p.region],
+    source: p.sources?.[0] || p.source,
+    sources: p.sources || (p.source ? [p.source] : []),
+    coordinateSource: p.coordinateSource || null,
+    coords: getVerifiedPosition({ ...p, roadGeometry }),
+    tagline:
+      p.tagline && p.tagline.length <= 28
+        ? p.tagline
+        : p.tags?.slice(0, 3).join(" · ") || "沿湖慢慢发现",
+    nav: p.nav || `${cities[p.region]}${p.name}`,
+    tip: p.tip || p.guide.watchOut,
+    roadGeometry,
+  };
+});
+export const placeById = Object.fromEntries(places.map((p) => [p.id, p]));

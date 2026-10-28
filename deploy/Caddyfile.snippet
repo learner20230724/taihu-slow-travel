@@ -1,5 +1,9 @@
 # Add inside the existing guihualab.cn site block, before its fallback handler.
 # Read the actual /home/ubuntu/guihualab.Caddyfile first; preserve other handlers.
+handle /api/taihu/* {
+    uri strip_prefix /api/taihu
+    reverse_proxy 127.0.0.1:4240
+}
 handle /taihu {
     redir /taihu/ 308
 }
